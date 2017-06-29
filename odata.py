@@ -14,6 +14,8 @@ https://github.com/ResistanceCalendar/resistance-calendar-api
 >>>
 
 """
+import re
+
 from parsimonious.grammar import Grammar
 
 
@@ -23,7 +25,6 @@ class ODataException(Exception):
 
 TESTS = [
     """foo eq 1""",
-    #WRONG: <Q: (AND: ('foo__isnull', True))>
     """start_date gt '2017-03-01'""",
     """start_date ge '2017-03-01' and start_date lt '2017-03-02'""",
     """location/postal_code eq '22980'""",
@@ -32,13 +33,24 @@ TESTS = [
     """(contains(name, 'Sessions') or contains(name, 'DeVos')) and location/postal_code eq '22980'"""]
 
 
-def django_filter(filter_text, field_mapper=None):
+def django_filter(filter_param, field_mapper=None):
     """
     accepts a $filter argument, and translates it to a django Q object to pass into a filter
     if a field_mapper is passed in, we can map fields beyond naive transposition
     """
     processor = FilterProcessor(DjangoQueryAdapter(field_mapper))
-    return processor.process(filter_text)
+    return processor.process(filter_param)
+
+
+def django_params(param_dict, field_mapper=None):
+    rv = {}
+    processor = FilterProcessor(DjangoQueryAdapter(field_mapper))
+    if '$filter' in param_dict:
+        rv['filter'] = processor.process(param_dict['$filter'])
+    if '$orderby' in param_dict:
+        rv['orderby'] = processor.order_by(param_dict['$orderby'])
+    return rv
+
 
 grammar = Grammar(
     # explicitly missing:
@@ -125,6 +137,12 @@ class DjangoQueryAdapter(object):
         self.field_mapper = field_mapper
         self.Q = Q
 
+    def order_by(self, order_term, direction='asc'):
+        ordering = self.field_mapper(order_term)
+        if direction and direction == 'desc':
+            ordering = '-%s' % ordering
+        return ordering
+
     def bool_combinor(self, leftExpr, op, rightExpr=None):
         """
         Args:
@@ -171,6 +189,14 @@ class FilterProcessor(object):
 
     def __init__(self, adapter):
         self.adapter = adapter
+
+    def order_by(self, order_param):
+        terms = order_param.split(',')
+        final = []
+        for t in terms:
+            term, *direction = re.split(r'\s+', t)
+            final.append(self.adapter.order_by(term.split('/'), *direction))
+        return final
 
     def unpack(self, node):
         """go down a level: common use case"""
