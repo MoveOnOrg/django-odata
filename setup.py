@@ -16,7 +16,7 @@ setup(
     description="odata filter adapter for django -- incomplete, but does the basic stuff",
     long_description=textwrap.dedent(open('README.md', 'r').read()),
     install_requires=[
-        'parsimonious==0.7.0',
+        'parsimonious==0.8.1',
     ],
     keywords = "python django odata",
     classifiers=['Intended Audience :: Developers', 'Operating System :: OS Independent', 'Topic :: Internet :: WWW/HTTP'],
